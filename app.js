@@ -25,7 +25,7 @@ function updateMethod(){
   const mode=$('distanceMode').value,pose=mode==='pose'||mode==='ai',fast=mode!=='ai',enabled=$('depthEnabled').checked;
   const reference=pose?poseReference:calibration;
   $('calibrationPanel').hidden=!enabled;
-  $('methodBadge').textContent=enabled?(pose?'CUBE POSE':fast?'FIXED VIEW':'AI DEPTH'):'DETECTION';
+  $('methodBadge').textContent=!enabled?'DETECTION':mode==='pose'?'CUBE POSE':mode==='calibrated'?'FIXED VIEW':'AI DEPTH + POSE';
   $('modeDescription').textContent=mode==='pose'?'35 cm cubes · changing view angles · one camera reference':mode==='calibrated'?'Legacy method · requires similar block angles':'AI depth + optional cube-edge/angle estimation · slower on some phones';
   $('depthState').textContent=!enabled?'Distance off':fast?(reference?'Reference saved':'Reference needed'):'Ready to load';
   $('referenceHelp').textContent=pose?'Show one whole 35 × 35 × 35 cm cube. Enter the measured distance from the camera lens to its nearest surface. Hold at that distance during setup; your viewing angle may change afterwards.':'Show one whole, front-facing block near the centre. Enter the measured distance from the camera lens to its front face.';
