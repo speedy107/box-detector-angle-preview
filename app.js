@@ -20,7 +20,7 @@ try{calibration=restoreCalibration(JSON.parse(localStorage.getItem(referenceKey)
 try{poseReference=restorePoseReference(JSON.parse(localStorage.getItem(poseReferenceKey)));}catch{}
 const status=(message,error=false)=>{$('status').textContent=message;$('status').classList.toggle('error',error);};
 const estimator=createDepthEstimator(message=>{if(depthBusy&&$('depthEnabled').checked&&$('distanceMode').value==='ai'){$('depthState').textContent=message;status(message);}});
-const poseEstimator=createPoseEstimator(message=>{if(poseBusy&&$('distanceMode').value==='pose'){$('depthState').textContent=message;status(message);}});
+const poseEstimator=createPoseEstimator(message=>{if(poseBusy&&['pose','ai'].includes($('distanceMode').value)){$('depthState').textContent=message;status(message);}});
 function updateMethod(){
   const mode=$('distanceMode').value,pose=mode==='pose'||mode==='ai',fast=mode!=='ai',enabled=$('depthEnabled').checked;
   const reference=pose?poseReference:calibration;
@@ -160,11 +160,11 @@ async function detect(){
     if(enabled&&(mode==='pose'||mode==='ai')){
       const matching=frameProfile&&poseReference&&samePoseCamera(poseReference.profile,frameProfile);
       result.boxes.forEach(box=>box.distanceReason=!frameProfile?'Use the calibrated camera':poseReference&&!matching?'Recalibrate camera':'Set camera reference');
-      if(frameProfile&&(matching||calibrationRequest)&&result.boxes.length){
+      if((mode==='ai'||(frameProfile&&(matching||calibrationRequest)))&&result.boxes.length){
         poseBusy=true;
         try{
           const pixels=frame.getContext('2d',{willReadFrequently:true}).getImageData(0,0,frame.width,frame.height).data;
-          const options=calibrationRequest?{referenceMetres:calibrationRequest.metres}:{focalNormalized:poseReference.focalNormalized*Math.max(frame.width,frame.height)/frame.width};
+          const options=calibrationRequest?{referenceMetres:calibrationRequest.metres}:matching?{focalNormalized:poseReference.focalNormalized*Math.max(frame.width,frame.height)/frame.width}:{focalNormalized:1.2*frame.width/Math.max(frame.width,frame.height)};
           const pose=await poseEstimator.infer(pixels,frame.width,frame.height,result.boxes,options);
           if(token!==epoch||revision!==settingsRevision)return;
           if(calibrationRequest){
@@ -183,7 +183,7 @@ async function detect(){
         }finally{poseBusy=false;}
       }else if(calibrationRequest&&result.boxes.length===0){calibrationRequest=null;$('calibrationState').textContent='Show one complete cube, then set the camera reference again.';controls();}
       const currentMatches=frameProfile&&poseReference&&samePoseCamera(poseReference.profile,frameProfile);
-      $('depthState').textContent=!frameProfile?'Use the calibrated camera':poseReference&&!currentMatches&&!calibrationRequest?'Recalibrate camera':poseReference?'Cube pose ready':'Reference needed';
+      $('depthState').textContent=mode==='ai'?(poseReference&&currentMatches?'AI depth + calibrated cube pose':'AI depth + approximate cube pose'):!frameProfile?'Use the calibrated camera':poseReference&&!currentMatches&&!calibrationRequest?'Recalibrate camera':poseReference?'Cube pose ready':'Reference needed';
     }
     if(enabled&&mode==='calibrated'){
       const distanceStart=performance.now();collectReference(result);
@@ -210,7 +210,7 @@ async function detect(){
     if(enabled&&mode==='ai'&&depthFailed)result.depthError=result.depthError||'Depth is unavailable. Retry depth to try again.';
     if(token!==epoch||revision!==settingsRevision)return;
     lastResult=result;paint(result);
-    status(result.depthError?`Detection works, but distance is unavailable: ${result.depthError}`:live?`Live detection · ${enabled?(mode==='pose'?'moving-camera cube pose':mode==='calibrated'?'fixed-view distance':'AI distance estimate'):'distance off'} · processing on this device`:`Photo detection complete · ${enabled&&mode!=='ai'?'use Start camera for distance, or choose AI estimate':'processed on your device'}`,Boolean(result.depthError));
+    status(result.depthError?`Detection works, but distance is unavailable: ${result.depthError}`:live?`Live detection · ${enabled?(mode==='pose'?'moving-camera cube pose':mode==='calibrated'?'fixed-view distance':'AI depth + approximate cube pose'):'distance off'} · processing on this device`:`Photo detection complete · ${enabled&&mode!=='ai'?'use Start camera for distance, or choose AI estimate':'processed on your device'}`,Boolean(result.depthError));
   }catch(error){if(token===epoch){stopCamera();status(`Could not detect boxes: ${error.message}`,true);}}
   finally{tensor?.dispose();if(outputs)Object.values(outputs).forEach(o=>o.dispose());lock(false);if(rerun&&hasFrame&&!live){rerun=false;queueMicrotask(detect);}}
 }
