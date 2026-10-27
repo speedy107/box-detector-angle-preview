@@ -2,7 +2,7 @@
 globalThis.CubePoseVision=(()=>{
   function corners(cv,image,box,width,height){
     const size=Math.min(box.x2-box.x1,box.y2-box.y1);
-    if(box.score<.6||size<32)return {error:'Cube edges are too small or unclear'};
+    if(box.score<.35||size<32)return {error:'Cube edges are too small or unclear'};
     if(box.x1<=2||box.y1<=2||box.x2>=width-2||box.y2>=height-2)return {error:'Show the whole cube'};
     const margin=Math.max(4,size*.1),x=Math.max(0,Math.floor(box.x1-margin)),y=Math.max(0,Math.floor(box.y1-margin));
     const right=Math.min(width,Math.ceil(box.x2+margin)),bottom=Math.min(height,Math.ceil(box.y2+margin));
