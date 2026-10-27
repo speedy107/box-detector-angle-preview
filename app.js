@@ -22,11 +22,11 @@ const status=(message,error=false)=>{$('status').textContent=message;$('status')
 const estimator=createDepthEstimator(message=>{if(depthBusy&&$('depthEnabled').checked&&$('distanceMode').value==='ai'){$('depthState').textContent=message;status(message);}});
 const poseEstimator=createPoseEstimator(message=>{if(poseBusy&&$('distanceMode').value==='pose'){$('depthState').textContent=message;status(message);}});
 function updateMethod(){
-  const mode=$('distanceMode').value,pose=mode==='pose',fast=mode!=='ai',enabled=$('depthEnabled').checked;
+  const mode=$('distanceMode').value,pose=mode==='pose'||mode==='ai',fast=mode!=='ai',enabled=$('depthEnabled').checked;
   const reference=pose?poseReference:calibration;
-  $('calibrationPanel').hidden=!fast||!enabled;
+  $('calibrationPanel').hidden=!enabled;
   $('methodBadge').textContent=enabled?(pose?'CUBE POSE':fast?'FIXED VIEW':'AI DEPTH'):'DETECTION';
-  $('modeDescription').textContent=pose?'35 cm cubes · changing view angles · one camera reference':fast?'Legacy method · requires similar block angles':'Indoor AI estimate · can be inaccurate · slow on some phones';
+  $('modeDescription').textContent=mode==='pose'?'35 cm cubes · changing view angles · one camera reference':mode==='calibrated'?'Legacy method · requires similar block angles':'AI depth + optional cube-edge/angle estimation · slower on some phones';
   $('depthState').textContent=!enabled?'Distance off':fast?(reference?'Reference saved':'Reference needed'):'Ready to load';
   $('referenceHelp').textContent=pose?'Show one whole 35 × 35 × 35 cm cube. Enter the measured distance from the camera lens to its nearest surface. Hold at that distance during setup; your viewing angle may change afterwards.':'Show one whole, front-facing block near the centre. Enter the measured distance from the camera lens to its front face.';
   $('referenceCaveats').textContent=pose?'Use 35 cm cubes with visible, clear edges. Changing lens, zoom or stream resolution needs a new reference. Blurred, hidden or very small corners may prevent an estimate.':'Use equal-size blocks in the same orientation. Changing lens, zoom, camera orientation or resolution needs a new reference. Hidden edges and stacks can still cause errors.';
@@ -38,7 +38,7 @@ function controls(){
   $('stop').disabled=!live;$('save').disabled=busy||!lastResult;
   // Distance controls stay usable while a slow AI inference is pending.
   $('depthRetry').disabled=busy;
-  $('calibrate').disabled=!live||!$('depthEnabled').checked||$('distanceMode').value==='ai';
+  $('calibrate').disabled=!live||!$('depthEnabled').checked;
   $('calibrate').textContent=calibrationRequest?'Cancel reference':'Set reference';
   $('clearCalibration').disabled=!($('distanceMode').value==='pose'?poseReference:calibration)&&!calibrationRequest;
 }
@@ -157,7 +157,7 @@ async function detect(){
     if(token!==epoch||revision!==settingsRevision)return;
     const result={boxes:decode(outputs[model.outputNames[0]],geometry,confidence,.45),elapsed,startedAt,frameNumber,mode,depthElapsed:null,depthEnabled:enabled,depthError:null};
     result.boxes.forEach(box=>box.distance=null);
-    if(enabled&&mode==='pose'){
+    if(enabled&&(mode==='pose'||mode==='ai')){
       const matching=frameProfile&&poseReference&&samePoseCamera(poseReference.profile,frameProfile);
       result.boxes.forEach(box=>box.distanceReason=!frameProfile?'Use the calibrated camera':poseReference&&!matching?'Recalibrate camera':'Set camera reference');
       if(frameProfile&&(matching||calibrationRequest)&&result.boxes.length){
@@ -262,7 +262,7 @@ $('distanceMode').addEventListener('change',distanceSettingsChanged);
 $('calibrate').addEventListener('click',()=>{
   if(calibrationRequest){calibrationRequest=null;$('calibrationState').textContent='Reference capture cancelled.';controls();return;}
   const metres=Number($('referenceMetres').value);
-  const pose=$('distanceMode').value==='pose',minimum=pose ? .3 : .1,maximum=pose?15:30;
+  const pose=$('distanceMode').value==='pose'||$('distanceMode').value==='ai',minimum=pose ? .3 : .1,maximum=pose?15:30;
   if(!Number.isFinite(metres)||metres<minimum||metres>maximum){$('calibrationState').textContent=`Enter a measured distance between ${minimum} and ${maximum} metres.`;return;}
   if(!live)return;
   calibrationRequest={metres,samples:[],profile:null};$('calibrationState').textContent='Hold one complete block steady while the reference is captured.';controls();
